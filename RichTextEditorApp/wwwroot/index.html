@@ -1,0 +1,140 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet" />
+    <meta charset="utf-8" />
+    <title>Quill Editor with Image Upload and Preview</title>
+    <style>
+        /* Flex container for the editor and image preview */
+        .editor-wrapper {
+            display: flex;
+            align-items: flex-start;
+        }
+
+        /* Quill editor styling */
+        #editor-container {
+            width: 70%;
+            height: 300px;
+            margin-right: 20px;
+        }
+
+        /* Image preview styling */
+        #image-preview {
+            width: 30%;
+            height: 300px;
+            border: 1px solid #ddd;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+            #image-preview img {
+                max-width: 100%;
+                max-height: 100%;
+                display: block;
+            }
+    </style>
+</head>
+<body>
+
+    <div class="editor-wrapper">
+        <!-- Editor container -->
+        <div id="editor-container"></div>
+
+        <!-- Image preview area -->
+        <div id="image-preview">
+            <span>No image selected</span>
+        </div>
+    </div>
+
+    <!-- File input for image upload -->
+    <input type="file" id="imageInput" accept="image/*" style="margin-top: 10px; margin-left: 300px" />
+
+    <!-- Undo and Redo buttons -->
+    <button onclick="undo()">Undo <=</button>
+    <button onclick="redo()">Redo =></button>
+
+    <!-- Save button -->
+    <button style="margin-left: 200px" onclick="saveContent()">Save Content</button>
+
+    <!-- Include the Quill library -->
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+
+    <script>
+        // Initialize Quill editor
+        const quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ header: [1, 2, false] }],
+                    ['bold', 'italic', 'underline'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                    ['clean']
+                ],
+                history: {
+                    delay: 1000,  // Delay in milliseconds before saving changes
+                    maxStack: 50,  // Max number of undo/redo steps
+                    userOnly: true // Track only user actions
+                }
+            }
+        });
+
+        // Image preview functionality
+        document.getElementById('imageInput').addEventListener('change', function (event) {
+            const file = event.target.files[0];
+            const previewContainer = document.getElementById('image-preview');
+            previewContainer.innerHTML = '';  // Clear any previous image
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    previewContainer.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                previewContainer.innerHTML = '<span>No image selected</span>';
+            }
+        });
+
+        // Undo function using Quill's history module
+        function undo() {
+            quill.history.undo();
+        }
+
+        // Redo function using Quill's history module
+        function redo() {
+            quill.history.redo();
+        }
+
+        function saveContent() {
+            // Get the HTML content from Quill
+            const content = quill.root.innerHTML;
+
+            // Get the selected image file
+            const imageFile = document.getElementById('imageInput').files[0];
+
+            // Create FormData and append content and image
+            const formData = new FormData();
+            formData.append('Content', content); // Add the content
+            if (imageFile) {
+                formData.append('Image', imageFile); // Add the image
+            }
+
+            // Send content and image to server
+            fetch('/api/TextContent', {
+                method: 'POST',
+                body: formData // Send the form data
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Content saved:', data);
+                    alert('Content saved successfully!');
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    </script>
+</body>
+</html>
