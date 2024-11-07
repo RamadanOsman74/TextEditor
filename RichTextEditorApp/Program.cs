@@ -13,14 +13,11 @@ namespace RichTextEditorApp
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
 
             builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
 
-            // Add CSP middleware
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("AllowAll", policy =>
@@ -42,7 +39,6 @@ namespace RichTextEditorApp
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -51,7 +47,6 @@ namespace RichTextEditorApp
             app.UseStaticFiles();
             app.UseAuthorization();
 
-            // Add CSP header
             app.Use(async (context, next) =>
             {
                 context.Response.Headers.Append("Content-Security-Policy",

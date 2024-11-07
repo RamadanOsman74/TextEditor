@@ -41,14 +41,12 @@ namespace RichTextEditorApp.Controllers
         [HttpPost]
         public async Task<IActionResult> CreateTextContent([FromForm]TextAndImageDTO textAndImageDTO)
         {
-            // Create and configure the sanitizer
             var sanitizer = new HtmlSanitizer();
 
             // You can remove inline event handlers like 'onclick', 'onload', etc.
             sanitizer.AllowedAttributes.Remove("href");  // disallow links
             sanitizer.AllowedAttributes.Remove("script");  // Allow links if needed
 
-            // Sanitize content to remove any dangerous tags like <script>
             textAndImageDTO.Content = sanitizer.Sanitize(textAndImageDTO.Content);
 
             if (textAndImageDTO.Image != null)
@@ -63,17 +61,14 @@ namespace RichTextEditorApp.Controllers
 
                 string uploadFolder = Path.Combine(_environment.WebRootPath, "Images");
 
-                // Check if directory exists and create it if not
                 if (!Directory.Exists(uploadFolder))
                 {
                     Directory.CreateDirectory(uploadFolder);
                 }
 
-                // Create a unique filename with timestamp to avoid overwriting
                 string fileName = $"{Path.GetFileNameWithoutExtension(textAndImageDTO.Image.FileName)}_{DateTime.Now:yyyyMMddHHmmss}{Path.GetExtension(textAndImageDTO.Image.FileName)}";
                 string filePath = Path.Combine(uploadFolder, fileName);
 
-                // Save the file on the server
                 try
                 {
                     using (var stream = new FileStream(filePath, FileMode.Create))
@@ -86,11 +81,9 @@ namespace RichTextEditorApp.Controllers
                     return StatusCode(500, $"Internal server error while saving file: {ex.Message}");
                 }
 
-                // Save the relative path to the image in the database
                 textContent.Image = Path.Combine("Images", fileName);
             }
 
-            // Save the TextContent to the database
             try
             {
                 textContent.Content = textAndImageDTO.Content;
@@ -102,10 +95,85 @@ namespace RichTextEditorApp.Controllers
                 return StatusCode(500, $"Internal server error while saving text content: {ex.Message}");
             }
 
-            return CreatedAtAction(nameof(GetTextContent), new { id = textContent.Id }, textContent);
+            return Content("Created");
         }
 
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateTextContent(int id, [FromForm] TextAndImageDTO textAndImageDTO)
+        {
+            // Find the existing content in the database
+            var existingContent = await _context.TextContents.FindAsync(id);
+            if (existingContent == null)
+            {
+                return NotFound("Content not found");
+            }
 
+            // Sanitize and update the content
+            var sanitizer = new HtmlSanitizer();
+            sanitizer.AllowedAttributes.Remove("href");  
+            sanitizer.AllowedAttributes.Remove("script");  
+            textAndImageDTO.Content = sanitizer.Sanitize(textAndImageDTO.Content);
+
+           
+            existingContent.Content = textAndImageDTO.Content;
+            existingContent.UpdatedAt = DateTime.UtcNow; 
+
+            if (textAndImageDTO.Image != null)
+            {
+                var allowedExtensions = new[] { ".jpg", ".png" };
+                var fileExtension = Path.GetExtension(textAndImageDTO.Image.FileName).ToLower();
+
+                if (!allowedExtensions.Contains(fileExtension))
+                {
+                    return BadRequest("Invalid file type. Only .jpg and .png are allowed.");
+                }
+
+                string uploadFolder = Path.Combine(_environment.WebRootPath, "Images");
+
+                if (!Directory.Exists(uploadFolder))
+                {
+                    Directory.CreateDirectory(uploadFolder);
+                }
+
+                string fileName = $"{Path.GetFileNameWithoutExtension(textAndImageDTO.Image.FileName)}_{DateTime.Now:yyyyMMddHHmmss}{Path.GetExtension(textAndImageDTO.Image.FileName)}";
+                string filePath = Path.Combine(uploadFolder, fileName);
+
+                try
+                {
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await textAndImageDTO.Image.CopyToAsync(stream);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return StatusCode(500, $"Internal server error while saving file: {ex.Message}");
+                }
+
+                if (!string.IsNullOrEmpty(existingContent.Image))
+                {
+                    var oldFilePath = Path.Combine(_environment.WebRootPath, existingContent.Image);
+                    if (System.IO.File.Exists(oldFilePath))
+                    {
+                        System.IO.File.Delete(oldFilePath);
+                    }
+                }
+
+                existingContent.Image = Path.Combine("Images", fileName);
+            }
+
+            try
+            {
+                _context.Entry(existingContent).State = EntityState.Modified;
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error while updating content: {ex.Message}");
+            }
+
+            return Content("Updated"); 
+        }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTextContent(int id)
@@ -114,7 +182,7 @@ namespace RichTextEditorApp.Controllers
             if (content == null) return NotFound();
             _context.TextContents.Remove(content);
             await _context.SaveChangesAsync();
-            return NoContent();
+            return Content("Deleted");
         }
     }
 }
